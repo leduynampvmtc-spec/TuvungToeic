@@ -1,0 +1,17 @@
+CÁCH LẤY FILE APK (khoảng 5 phút, chỉ cần trình duyệt)
+
+1. Vào github.com, bấm "+" (góc trên phải) > New repository.
+   Đặt tên: TuVungToeic, chọn Private hoặc Public, bấm Create repository.
+2. Trong repo mới, bấm "uploading an existing file".
+   Mở thư mục TuVungToeic, chọn TẤT CẢ file và thư mục bên trong (app, build.gradle,
+   settings.gradle, gradle.properties, build-apk.yml...), kéo vào trang, bấm Commit changes.
+3. Tạo file build: bấm Add file > Create new file.
+   Ở ô tên file gõ đúng:  .github/workflows/build-apk.yml
+   Mở file build-apk.yml (trong thư mục này) bằng TextEdit, copy toàn bộ nội dung, dán vào. Bấm Commit changes.
+4. Bấm tab Actions. Đợi lần chạy "Build APK" có dấu tick xanh (3–5 phút).
+5. Bấm vào lần chạy đó, kéo xuống mục Artifacts, tải "TuVungToeic-apk" (file .zip, giải nén ra TuVungToeic.apk).
+6. Gửi file APK sang điện thoại Android (Zalo, Google Drive, cáp...), mở file và cho phép
+   "Cài đặt ứng dụng không rõ nguồn gốc" khi được hỏi.
+
+Cách khác: nếu máy có Android Studio, mở thư mục TuVungToeic, đợi đồng bộ xong,
+chọn Build > Build App Bundle(s) / APK(s) > Build APK(s).
