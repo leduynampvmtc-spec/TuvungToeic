@@ -10,6 +10,9 @@ jobs:
       - name: Kiểm tra cấu trúc thư mục
         run: |
           ls -la
+          # Nếu MainActivity.java / index.html được upload ở ngoài cùng thì tự chuyển vào đúng chỗ
+          if [ -f MainActivity.java ]; then mkdir -p app/src/main/java/com/leduynam/tuvungtoeic && cp MainActivity.java app/src/main/java/com/leduynam/tuvungtoeic/; fi
+          if [ -f index.html ]; then mkdir -p app/src/main/assets && cp index.html app/src/main/assets/; fi
           for f in settings.gradle build.gradle app/build.gradle app/src/main/AndroidManifest.xml app/src/main/assets/index.html app/src/main/java/com/leduynam/tuvungtoeic/MainActivity.java; do
             if [ ! -f "$f" ]; then echo "::error::THIẾU FILE: $f (upload chưa đúng vị trí)"; MISSING=1; fi
           done
