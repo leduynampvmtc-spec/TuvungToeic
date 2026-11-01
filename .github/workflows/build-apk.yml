@@ -7,6 +7,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+      - name: Kiểm tra cấu trúc thư mục
+        run: |
+          ls -la
+          for f in settings.gradle build.gradle app/build.gradle app/src/main/AndroidManifest.xml app/src/main/assets/index.html app/src/main/java/com/leduynam/tuvungtoeic/MainActivity.java; do
+            if [ ! -f "$f" ]; then echo "::error::THIẾU FILE: $f (upload chưa đúng vị trí)"; MISSING=1; fi
+          done
+          [ -z "$MISSING" ]
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -21,7 +28,14 @@ jobs:
       - name: Build debug APK
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          gradle assembleDebug --no-daemon --stacktrace
+          set +e
+          gradle assembleDebug --no-daemon 2>&1 | tee build.log
+          CODE=${PIPESTATUS[0]}
+          if [ $CODE -ne 0 ]; then
+            grep -A 12 "What went wrong" build.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done
+            grep -E "^e: |error:|ERROR:" build.log | head -10 | while IFS= read -r line; do echo "::error::$line"; done
+          fi
+          exit $CODE
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk TuVungToeic.apk
       - uses: actions/upload-artifact@v5
