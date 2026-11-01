@@ -17,6 +17,45 @@ jobs:
             if [ ! -f "$f" ]; then echo "::error::THIẾU FILE: $f (upload chưa đúng vị trí)"; MISSING=1; fi
           done
           [ -z "$MISSING" ]
+      - name: Tạo thư mục res (icon, tên app, giao diện)
+        run: |
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'XMLEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_bg" />
+              <foreground android:drawable="@drawable/ic_fg" />
+          </adaptive-icon>
+          XMLEOF
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/strings.xml <<'XMLEOF'
+          <resources><string name="app_name">Từ vựng TOEIC</string></resources>
+          XMLEOF
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/styles.xml <<'XMLEOF'
+          <resources>
+              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:statusBarColor">#F3F5F9</item>
+                  <item name="android:windowLightStatusBar">true</item>
+                  <item name="android:navigationBarColor">#F3F5F9</item>
+                  <item name="android:windowBackground">@color/bg</item>
+              </style>
+              <color name="bg">#F3F5F9</color>
+              <color name="ic_bg">#2448B8</color>
+          </resources>
+          XMLEOF
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_fg.xml <<'XMLEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <!-- quyển sổ mở -->
+              <path android:fillColor="#FFFFFF" android:pathData="M30,38 Q42,33 53,38 L53,72 Q42,67 30,72 Z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M55,38 Q66,33 78,38 L78,72 Q66,67 55,72 Z" />
+              <path android:fillColor="#FFE45C" android:pathData="M30,75 L78,75 L78,79 L30,79 Z" />
+              <path android:fillColor="#2448B8" android:pathData="M35,45 L48,45 L48,47 L35,47 Z M35,51 L48,51 L48,53 L35,53 Z M35,57 L45,57 L45,59 L35,59 Z M60,45 L73,45 L73,47 L60,47 Z M60,51 L73,51 L73,53 L60,53 Z M60,57 L70,57 L70,59 L60,59 Z" />
+          </vector>
+          XMLEOF
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
