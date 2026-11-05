@@ -170,6 +170,25 @@ textarea:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--
 .trtext{white-space:pre-wrap;line-height:1.7;font-size:1rem}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:999px;font-size:.9rem;opacity:0;pointer-events:none;transition:.2s;z-index:20;max-width:calc(100% - 32px)}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.hrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sync-btn{display:inline-flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--line);display:inline-block;flex:none}
+.dot.on,.sync-btn[data-state=on] .dot{background:var(--ok)}
+.sync-btn[data-state=busy] .dot{background:var(--mark)}
+.sync-btn[data-state=err] .dot{background:var(--bad)}
+.sync-card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.sync-card h2{margin:0;font-size:1.05rem;font-weight:800}
+.sync-card h2 .muted{font-weight:500;font-size:.85rem}
+.sync-row{display:flex;align-items:center;gap:8px}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:.93rem}
+.steps a{color:var(--accent);font-weight:600}
+.steps code{font-family:var(--mono);background:var(--bg);padding:0 4px;border-radius:4px}
+.sync-dev{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--muted)}
+.sync-dev input{flex:1;min-width:0;font:500 .95rem var(--sans);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.sync-msg{font-size:.9rem;color:var(--ok);min-height:1em}
+.sync-msg.err{color:var(--bad)}
+.small{font-size:.82rem;line-height:1.5}
+.dform input[type=password]{flex:1;min-width:0;font:500 1rem var(--mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .empty{padding:20px;color:var(--muted);text-align:center}
 @media (max-width:420px){.opts{grid-template-columns:1fr}.tabs button{font-size:.8rem}.card .front{font-size:1.6rem}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -179,7 +198,7 @@ textarea:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--
 <body>
 <div class="wrap">
   <header>
-    <h1><span>Sổ từ vựng TOEIC</span></h1>
+    <div class="hrow"><h1><span>Sổ từ vựng TOEIC</span></h1><button class="btn sm sync-btn" id="syncBtn" type="button" data-state="off"><span class="dot"></span>Đồng bộ</button></div>
     <p>Bài 1–29: 582 từ trong sổ của anh, giữ đúng thứ tự. Bài 30–59: 602 từ TOEIC cốt lõi theo chủ đề. Mỗi bài 20 từ, có đọc hiểu và ngữ pháp.</p>
   </header>
 
@@ -241,7 +260,8 @@ function maskWord(m,w){const parts=w.split(/\s+/).filter(p=>p.length>2);let out=
 function render(){
   sel.value=L;
   document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.mode===MODE));
-  const tool=['den','dvi','tr'].includes(MODE);$('.row1').hidden=tool;
+  const tool=['den','dvi','tr','sync'].includes(MODE);$('.row1').hidden=tool;
+  if(MODE==='sync')return renderSync();
   if(MODE==='den')return renderDict('en');if(MODE==='dvi')return renderDict('vi');if(MODE==='tr')return renderTrans();
   const items=lessons[L];
   (({en:renderEN,vn:renderVN,fc:renderFC,fill:renderFill,read:renderRead,gram:renderGram})[MODE]||renderEN)(items);
@@ -601,7 +621,111 @@ function renderGram(items,opt={}){
   qs.forEach((q,i)=>q.num=101+i);
   renderMCQ(qs,{hint:opt.fresh?'Bộ câu mới: câu chọn dạng từ của bài này và câu Part 5 lấy ngẫu nhiên từ các bài khác.':'Chọn đáp án đúng điền vào chỗ trống (kiểu TOEIC Part 5).',numStart:101,itemsRef:items,fn:renderGram,opt,withNew:true});
 }
+/* ---------- Đồng bộ tiến độ giữa các máy ---------- */
+const rawGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const rawSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,String(v))}catch(e){}};
+const SYNCABLE=k=>['lesson','known','fcRev'].includes(k)||k.startsWith('wr:');
+const SYNC_FILE='tuvungtoeic-sync.json';
+function snapshot(){const d={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(SYNCABLE(k))d[k]=localStorage.getItem(k)}}catch(e){}return d}
+function applySnap(d){
+  Object.keys(d||{}).forEach(k=>{if(SYNCABLE(k))rawSet(k,d[k])});
+  known=new Set(store.get('known',[]));L=Math.min(store.get('lesson',L),lessons.length-1);fcRev=store.get('fcRev',fcRev);
+  Object.keys(ST).forEach(k=>delete ST[k]);fcLesson=-1;
+}
+function mergeSnap(remote,local,remoteWins){
+  const out=remoteWins?{...local,...remote}:{...remote,...local};
+  const arr=(s)=>{try{return JSON.parse(s)||[]}catch(e){return []}};
+  if(remote.known||local.known)out.known=JSON.stringify([...new Set([...arr(remote.known),...arr(local.known)])]);
+  return out;
+}
+function markLocalChange(){rawSet('syncT',Date.now());schedulePush()}
+const _set=store.set;store.set=(k,v)=>{_set(k,v);if(SYNCABLE(k))markLocalChange()};
+function devName(){return rawGet('devName')||(/iPhone|iPad|Android|Mobile/i.test(navigator.userAgent)?'Điện thoại':'Máy tính')}
+function fmtTime(t){if(!t)return 'chưa có';const d=new Date(+t);return d.toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})}
+let syncState={busy:false,msg:'',err:''};
+function setSyncMsg(msg,err){syncState.msg=msg||'';syncState.err=err||'';updateSyncBadge();const m=$('#syncMsg');if(m){m.textContent=err||msg;m.className='sync-msg'+(err?' err':'')}}
+function updateSyncBadge(){const b=$('#syncBtn');if(!b)return;const on=!!rawGet('ghTok');b.dataset.state=syncState.err?'err':on?(syncState.busy?'busy':'on'):'off';b.title=on?(syncState.err||'Đồng bộ lần cuối: '+fmtTime(rawGet('syncAt'))):'Chưa bật đồng bộ'}
+
+async function gh(path,opt={}){
+  const r=await fetch('https://api.github.com'+path,{...opt,cache:'no-store',headers:{'Authorization':'Bearer '+rawGet('ghTok'),'Accept':'application/vnd.github+json',...(opt.body?{'Content-Type':'application/json'}:{})}});
+  if(r.status===401)throw new Error('Mã GitHub không đúng hoặc đã hết hạn.');
+  if(r.status===404)throw new Error('Không tìm thấy dữ liệu đồng bộ (mã có thể thiếu quyền gist).');
+  if(!r.ok)throw new Error('GitHub báo lỗi '+r.status+'.');
+  return r.status===204?null:r.json();
+}
+async function findGist(){
+  let id=rawGet('gistId');if(id)return id;
+  const list=await gh('/gists?per_page=100');const g=list.find(g=>g.files&&g.files[SYNC_FILE]);
+  if(g){rawSet('gistId',g.id);return g.id}
+  const n=await gh('/gists',{method:'POST',body:JSON.stringify({description:'Sổ từ vựng TOEIC - đồng bộ tiến độ học',public:false,files:{[SYNC_FILE]:{content:JSON.stringify({t:0,dev:'',d:{}})}}})});
+  rawSet('gistId',n.id);return n.id;
+}
+async function pullRemote(){const id=await findGist();const g=await gh('/gists/'+id);const f=g.files[SYNC_FILE];if(!f)return {t:0,d:{}};
+  let c=f.content;if(f.truncated){c=await (await fetch(f.raw_url,{cache:'no-store'})).text()}try{return JSON.parse(c)}catch(e){return {t:0,d:{}}}}
+async function pushRemote(t){const id=await findGist();const body={t,dev:devName(),d:snapshot()};
+  await gh('/gists/'+id,{method:'PATCH',body:JSON.stringify({files:{[SYNC_FILE]:{content:JSON.stringify(body)}}})});rawSet('syncRemoteT',t)}
+async function syncNow(manual){
+  if(!rawGet('ghTok')||syncState.busy)return;
+  if(!navigator.onLine){setSyncMsg('','Đang không có mạng. Tiến độ vẫn lưu trên máy và sẽ đồng bộ khi có mạng.');return}
+  syncState.busy=true;updateSyncBadge();
+  try{
+    const r=await pullRemote();const lt=+rawGet('syncT')||0,rt=+rawGet('syncRemoteT')||0;
+    const remoteNew=(r.t||0)>rt, localNew=lt>rt;
+    let msg='Đã đồng bộ, không có gì mới.';
+    if(remoteNew&&!localNew){applySnap(r.d);rawSet('syncT',r.t);rawSet('syncRemoteT',r.t);msg='Đã tải tiến độ từ '+(r.dev||'máy khác')+' ('+fmtTime(r.t)+').';if(MODE!=='sync')render()}
+    else if(localNew&&!remoteNew){await pushRemote(lt);msg='Đã lưu tiến độ lên GitHub.'}
+    else if(localNew&&remoteNew){const m=mergeSnap(r.d||{},snapshot(),(r.t||0)>lt);applySnap(m);const t=Date.now();rawSet('syncT',t);await pushRemote(t);msg='Đã gộp tiến độ của hai máy.';if(MODE!=='sync')render()}
+    rawSet('syncAt',Date.now());setSyncMsg((manual||remoteNew||localNew)?msg:syncState.msg);
+  }catch(e){setSyncMsg('',/Failed to fetch|NetworkError|Load failed/i.test(e.message)?'Không kết nối được GitHub (mất mạng hoặc trang đang chặn kết nối).':e.message)}
+  finally{syncState.busy=false;updateSyncBadge();if(MODE==='sync')renderSyncInfo()}
+}
+let pushTimer;function schedulePush(){if(!rawGet('ghTok'))return;clearTimeout(pushTimer);pushTimer=setTimeout(()=>syncNow(false),4000)}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncNow(false);else if(rawGet('ghTok')&&(+rawGet('syncT')||0)>(+rawGet('syncRemoteT')||0)){clearTimeout(pushTimer);syncNow(false)}});
+window.addEventListener('online',()=>syncNow(false));
+
+// Mã tiến độ (cách thủ công)
+function exportCode(){const json=JSON.stringify({v:1,t:Date.now(),d:snapshot()});return 'TVT1:'+btoa(unescape(encodeURIComponent(json)))}
+function importCode(code){const s=String(code).trim().replace(/\s+/g,'');if(!s.startsWith('TVT1:'))throw new Error('Mã không đúng định dạng (phải bắt đầu bằng TVT1:).');
+  const o=JSON.parse(decodeURIComponent(escape(atob(s.slice(5)))));applySnap(mergeSnap(snapshot(),o.d||{}));markLocalChange();return o}
+
+function renderSyncInfo(){const box=$('#syncInfo');if(!box)return;const on=!!rawGet('ghTok');
+  box.innerHTML=on?`<div class="sync-row"><span class="dot on"></span><b>Đang bật đồng bộ tự động</b></div>
+    <div class="muted">Máy này: <b>${esc(devName())}</b> · Lần đồng bộ cuối: ${fmtTime(rawGet('syncAt'))}</div>
+    <div class="actions" style="margin-top:6px"><button class="btn primary" id="syncGo">Đồng bộ ngay</button><button class="btn" id="syncOff">Tắt đồng bộ trên máy này</button></div>`
+  :`<div class="sync-row"><span class="dot"></span><b>Chưa bật đồng bộ tự động</b></div>
+    <ol class="steps"><li>Trên máy tính, đăng nhập GitHub rồi mở <a href="https://github.com/settings/tokens/new?scopes=gist&description=Tu%20vung%20TOEIC" target="_blank" rel="noopener">trang tạo mã (token) ↗</a>.</li>
+    <li>Mục <b>Expiration</b> chọn <b>No expiration</b>; chỉ tick ô <b>gist</b> (đã tick sẵn). Kéo xuống bấm <b>Generate token</b>.</li>
+    <li>Sao chép mã bắt đầu bằng <code>ghp_</code>, dán vào ô dưới và bấm <b>Bật đồng bộ</b>.</li>
+    <li>Trên điện thoại, mở app này, vào <b>Đồng bộ</b> và dán <b>đúng mã đó</b> (gửi qua Zalo cho mình).</li></ol>
+    <form class="dform" id="tokForm"><input type="password" id="tokIn" placeholder="Dán mã ghp_…" autocomplete="off" spellcheck="false"><button class="btn primary" type="submit">Bật đồng bộ</button></form>`;
+  const go=$('#syncGo');if(go)go.onclick=()=>syncNow(true);
+  const off=$('#syncOff');if(off)off.onclick=()=>{['ghTok','gistId','syncRemoteT','syncAt'].forEach(k=>rawSet(k,null));setSyncMsg('Đã tắt đồng bộ trên máy này. Tiến độ vẫn còn trên máy.');renderSyncInfo()};
+  const f=$('#tokForm');if(f)f.onsubmit=async e=>{e.preventDefault();const v=$('#tokIn').value.trim();if(!/^(ghp_|github_pat_)/.test(v)){setSyncMsg('','Mã phải bắt đầu bằng ghp_ hoặc github_pat_.');return}
+    rawSet('ghTok',v);rawSet('syncRemoteT',0);rawSet('syncT',1);setSyncMsg('Đang kết nối GitHub…');renderSyncInfo();await syncNow(true)};
+}
+function renderSync(){
+  $('#main').innerHTML=`<div class="status"><span class="hint">Học trên máy tính rồi học tiếp trên điện thoại: bài đang học, thẻ đã thuộc và danh sách câu sai được chuyển theo.</span></div>
+  <section class="sync-card"><h2>Cách 1 · Tự động qua GitHub <span class="muted">(cần mạng)</span></h2><div id="syncInfo"></div>
+    <label class="sync-dev">Tên máy này <input type="text" id="devIn" value="${esc(devName())}" maxlength="30"></label>
+    <div id="syncMsg" class="sync-msg${syncState.err?' err':''}">${esc(syncState.err||syncState.msg)}</div></section>
+  <section class="sync-card"><h2>Cách 2 · Bằng mã tiến độ <span class="muted">(không cần mạng, không cần tài khoản)</span></h2>
+    <ol class="steps"><li>Trên máy đang học, bấm <b>Sao chép mã tiến độ</b> rồi gửi mã sang máy kia (Zalo, email…).</li><li>Trên máy kia, dán mã vào ô dưới và bấm <b>Nhập tiến độ</b>.</li></ol>
+    <div class="actions" style="margin-top:0"><button class="btn primary" id="cpCode">Sao chép mã tiến độ</button></div>
+    <textarea id="codeIn" rows="3" placeholder="Dán mã TVT1:… vào đây"></textarea>
+    <div class="actions" style="margin-top:0"><button class="btn" id="impCode">Nhập tiến độ</button></div>
+    <div id="codeMsg" class="sync-msg"></div></section>
+  <p class="muted small">Mã GitHub chỉ có quyền tạo một ghi chú bí mật (gist) chứa tiến độ học, không đụng tới các repo của anh. Mã được lưu trên từng máy, không gửi đi đâu khác ngoài GitHub. Lưu ý: trên iPhone, app ở màn hình chính và Safari lưu dữ liệu riêng, nên hãy dán mã vào trong app.</p>`;
+  renderSyncInfo();
+  $('#devIn').onchange=e=>{rawSet('devName',e.target.value.trim()||null);renderSyncInfo()};
+  $('#cpCode').onclick=()=>{const c=exportCode();const ta=$('#codeIn');
+    const done=()=>{$('#codeMsg').className='sync-msg';$('#codeMsg').textContent='Đã sao chép mã ('+Object.keys(snapshot()).length+' mục). Gửi mã này sang máy kia.'};
+    (navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(done,()=>{ta.value=c;ta.select();$('#codeMsg').textContent='Mã đã hiện trong ô, bấm giữ để sao chép.'})};
+  $('#impCode').onclick=()=>{try{const o=importCode($('#codeIn').value);$('#codeMsg').className='sync-msg';$('#codeMsg').textContent='Đã nhập tiến độ (tạo lúc '+fmtTime(o.t)+'). Đã thuộc: '+known.size+' từ.';$('#codeIn').value=''}catch(e){$('#codeMsg').className='sync-msg err';$('#codeMsg').textContent=e.message||'Mã không hợp lệ.'}};
+}
+
+$('#syncBtn').onclick=()=>{MODE='sync';render();window.scrollTo(0,0)};updateSyncBadge();
 render();
+setTimeout(()=>syncNow(false),600);
 </script>
 
 <script>

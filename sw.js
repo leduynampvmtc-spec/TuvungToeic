@@ -1,5 +1,5 @@
 // Bản offline: lưu toàn bộ ứng dụng trong máy. Đổi VERSION khi cập nhật nội dung.
-const VERSION = 'tvtoeic-v6';
+const VERSION = 'tvtoeic-v7';
 const CORE = ['./', './index.html', './manifest.json', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
